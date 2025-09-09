@@ -4,9 +4,9 @@ import mysql.connector
 
 # CONFIGURAÇÃO DO MYSQL
 DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",         # troque para seu usuário
-    "password": "Kasterborous1001100*",# troque para sua senha
+    "host": "127.0.0.1",
+    "user": "root",# troque para seu usuário
+    "password": "fiap",# troque para sua senha
     "database": "estoque_db"
 }
 
@@ -94,11 +94,11 @@ class GerenciadorEstoque:
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("📦 Sistema de Estoque (MySQL 8)")
+        self.root.title("Sistema de Estoque (MySQL 8)")
         self.estoque = GerenciadorEstoque()
 
         if not self.estoque.cur:
-            tk.Label(root, text="❌ Não foi possível conectar ao banco MySQL.\nVerifique suas credenciais e se o MySQL está ativo.", fg="red").pack(pady=20)
+            tk.Label(root, text="Não foi possível conectar ao banco MySQL.\nVerifique suas credenciais e se o MySQL está ativo.", fg="red").pack(pady=20)
             return
 
         # Formulário de cadastro
