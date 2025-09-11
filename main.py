@@ -2,21 +2,14 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import mysql.connector
 
-# CONFIGURAÇÃO DO MYSQL
-DB_CONFIG = {
-    "host": "127.0.0.1",
-    "user": "root",# troque para seu usuário
-    "password": "fiap",# troque para sua senha
-    "database": "estoque_db"
-}
-
+# ================= GERENCIADOR DE ESTOQUE =================
 class GerenciadorEstoque:
-    def __init__(self):
+    def __init__(self, db_config):
         self.conn = None
         self.cur = None
         try:
             # Conecta ao MySQL
-            self.conn = mysql.connector.connect(**DB_CONFIG)
+            self.conn = mysql.connector.connect(**db_config)
             self.cur = self.conn.cursor()
             self.criar_banco_tabela()
         except mysql.connector.Error as err:
@@ -26,10 +19,8 @@ class GerenciadorEstoque:
     def criar_banco_tabela(self):
         if not self.cur:
             return
-        # Cria banco se não existir
         self.cur.execute("CREATE DATABASE IF NOT EXISTS estoque_db")
         self.cur.execute("USE estoque_db")
-        # Cria tabela se não existir
         self.cur.execute("""
             CREATE TABLE IF NOT EXISTS produtos (
                 codigo VARCHAR(20) PRIMARY KEY,
@@ -42,11 +33,21 @@ class GerenciadorEstoque:
                 estoque_minimo INT NOT NULL DEFAULT 5
             )
         """)
+        # popula somente se tabela estiver vazia
+        self.cur.execute("SELECT COUNT(*) FROM produtos")
+        if self.cur.fetchone()[0] == 0:
+            self.cur.execute("""
+                INSERT INTO produtos (codigo, nome, categoria, quantidade, preco, descricao, fornecedor, estoque_minimo) 
+                VALUES
+                ('P001', 'Notebook Lenovo', 'Eletrônicos', 15, 3500.00, 'Notebook Lenovo Ideapad 3, 8GB RAM, SSD 256GB', 'TechSupplier Ltda', 5),
+                ('P002', 'Camiseta Polo', 'Vestuário', 40, 79.90, 'Camiseta polo algodão tamanho M', 'FashionWear', 10),
+                ('P003', 'Smartphone Samsung A14', 'Eletrônicos', 8, 1200.00, 'Smartphone com 128GB armazenamento', 'MobileTech', 3),
+                ('P004', 'Cadeira Gamer', 'Móveis', 5, 899.99, 'Cadeira gamer ergonômica preta e vermelha', 'OfficePlus', 2),
+                ('P005', 'Fone de Ouvido JBL', 'Eletrônicos', 25, 199.90, 'Fone Bluetooth JBL Tune 510BT', 'SoundStore', 5)
+            """)
         self.conn.commit()
 
     def cadastrar_produto(self, produto):
-        if not self.cur:
-            return False
         try:
             self.cur.execute("""
                 INSERT INTO produtos VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
@@ -59,21 +60,15 @@ class GerenciadorEstoque:
             return False
 
     def listar_produtos(self):
-        if not self.cur:
-            return []
         self.cur.execute("SELECT * FROM produtos")
         return self.cur.fetchall()
 
     def atualizar_estoque(self, codigo, nova_qtd):
-        if not self.cur:
-            return False
         self.cur.execute("UPDATE produtos SET quantidade=%s WHERE codigo=%s", (nova_qtd, codigo))
         self.conn.commit()
         return self.cur.rowcount > 0
 
     def remover_estoque(self, codigo, qtd):
-        if not self.cur:
-            return False
         self.cur.execute("SELECT quantidade FROM produtos WHERE codigo=%s", (codigo,))
         res = self.cur.fetchone()
         if res and res[0] >= qtd:
@@ -83,19 +78,17 @@ class GerenciadorEstoque:
         return False
 
     def adicionar_estoque(self, codigo, qtd):
-        if not self.cur:
-            return False
         self.cur.execute("UPDATE produtos SET quantidade = quantidade + %s WHERE codigo=%s", (qtd, codigo))
         self.conn.commit()
         return self.cur.rowcount > 0
 
 
-# ================= INTERFACE GRAFICA =================
+# ================= INTERFACE PRINCIPAL =================
 class App:
-    def __init__(self, root):
+    def __init__(self, root, db_config):
         self.root = root
         self.root.title("Sistema de Estoque (MySQL 8)")
-        self.estoque = GerenciadorEstoque()
+        self.estoque = GerenciadorEstoque(db_config)
 
         if not self.estoque.cur:
             tk.Label(root, text="Não foi possível conectar ao banco MySQL.\nVerifique suas credenciais e se o MySQL está ativo.", fg="red").pack(pady=20)
@@ -210,7 +203,49 @@ class App:
         return result.get("qtd")
 
 
+# ================= JANELA DE LOGIN =================
+class LoginWindow:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Login no Banco de Dados")
+        self.root.geometry("300x250")
+
+        tk.Label(root, text="Host:").pack(pady=5)
+        self.entry_host = tk.Entry(root)
+        self.entry_host.insert(0, "127.0.0.1")
+        self.entry_host.pack()
+
+        tk.Label(root, text="Usuário:").pack(pady=5)
+        self.entry_user = tk.Entry(root)
+        self.entry_user.insert(0, "root")
+        self.entry_user.pack()
+
+        tk.Label(root, text="Senha:").pack(pady=5)
+        self.entry_password = tk.Entry(root, show="*")
+        self.entry_password.pack()
+
+        tk.Button(root, text="Conectar", command=self.login).pack(pady=20)
+
+    def login(self):
+        db_config = {
+            "host": self.entry_host.get(),
+            "user": self.entry_user.get(),
+            "password": self.entry_password.get(),
+        }
+        try:
+            conn = mysql.connector.connect(**db_config)
+            if conn.is_connected():
+                conn.close()
+                self.root.destroy()
+                # abre sistema principal
+                main_root = tk.Tk()
+                App(main_root, db_config)
+                main_root.mainloop()
+        except mysql.connector.Error as e:
+            messagebox.showerror("Erro", f"Não foi possível conectar:\n{e}")
+
+
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = App(root)
-    root.mainloop()
+    login_root = tk.Tk()
+    LoginWindow(login_root)
+    login_root.mainloop()
